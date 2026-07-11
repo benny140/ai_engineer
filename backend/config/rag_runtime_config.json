@@ -1,0 +1,13 @@
+{
+  "vector_store_provider": "chroma",
+  "persist_dir": "data/chroma_db",
+  "collection_name": "rag_docs",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "top_k": 5,
+  "max_distance": 0.5,
+  "fallback_max_distance": 0.7,
+  "ollama_max_retries": 1,
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "granite4.1:3b",
+  "ollama_timeout_sec": 45
+}

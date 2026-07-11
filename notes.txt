@@ -1,0 +1,12 @@
+ollama pull granite4.1:3b
+ollama serve
+curl http://localhost:11434/api/tags
+
+fastapi dev backend/app/api.py
+
+cd frontend
+npm run dev
+
+
+To shutdown, open powershell and type:
+Get-Process ollama, "ollama app" -ErrorAction SilentlyContinue | Stop-Process

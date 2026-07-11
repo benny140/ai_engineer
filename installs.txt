@@ -1,0 +1,10 @@
+pandas
+chromadb
+sentence-transformers
+pyarrow
+tqdm
+transformers
+agent-framework
+requests
+fastapi[standard]
+uvicorn

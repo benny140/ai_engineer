@@ -1,0 +1,432 @@
+{
+  "input_dir": "raw",
+  "files": [
+    {
+      "file": "categories.parquet",
+      "rows": 43,
+      "columns": [
+        {
+          "name": "id",
+          "dtype": "str"
+        },
+        {
+          "name": "function_id",
+          "dtype": "str"
+        },
+        {
+          "name": "category",
+          "dtype": "str"
+        },
+        {
+          "name": "name",
+          "dtype": "str"
+        },
+        {
+          "name": "description",
+          "dtype": "str"
+        },
+        {
+          "name": "implementation_examples",
+          "dtype": "str"
+        },
+        {
+          "name": "source_url",
+          "dtype": "str"
+        },
+        {
+          "name": "language",
+          "dtype": "str"
+        },
+        {
+          "name": "generated_at",
+          "dtype": "str"
+        },
+        {
+          "name": "name_fr",
+          "dtype": "str"
+        },
+        {
+          "name": "description_fr",
+          "dtype": "str"
+        },
+        {
+          "name": "implementation_examples_fr",
+          "dtype": "str"
+        }
+      ],
+      "selected_columns": [
+        "id",
+        "function_id",
+        "category",
+        "name",
+        "description",
+        "implementation_examples",
+        "source_url",
+        "language",
+        "generated_at",
+        "name_fr",
+        "description_fr",
+        "implementation_examples_fr"
+      ],
+      "sample_rows": [
+        {
+          "id": "GV.OC-01",
+          "function_id": "GV",
+          "category": "Organizational Context",
+          "name": "Organizational Context",
+          "description": "Understand organizational context, business environments, and strategic objectives.",
+          "implementation_examples": "Document critical business processes, system interdependencies, strategic objectives, and operational environments.",
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169846",
+          "name_fr": "Contexte Organisationnel",
+          "description_fr": "Comprendre le contexte opérationnel, les environnements métier et les objectifs stratégiques de l'organisation.",
+          "implementation_examples_fr": "Documenter les processus métier critiques, les dépendances entre systèmes, les objectifs stratégiques et les environnements opérationnels."
+        },
+        {
+          "id": "GV.RM-01",
+          "function_id": "GV",
+          "category": "Risk Management Strategy",
+          "name": "Risk Management Strategy",
+          "description": "Establish cybersecurity risk management strategy aligned with organizational strategy.",
+          "implementation_examples": "Create risk management policies, define risk tolerance levels, establish risk acceptance criteria.",
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169850",
+          "name_fr": "Stratégie de Gestion des Risques",
+          "description_fr": "Établir une stratégie de gestion des risques de cybersécurité alignée avec la stratégie d'organisation.",
+          "implementation_examples_fr": "Créer une politique de gestion des risques, définir la tolérance au risque, établir les critères d'acceptabilité des risques."
+        },
+        {
+          "id": "GV.RM-02",
+          "function_id": "GV",
+          "category": "Risk Management Strategy",
+          "name": "Risk Management Framework",
+          "description": "Implement risk management framework including identification, analysis, and response to risks.",
+          "implementation_examples": "Use structured risk analysis methodologies (ISO 27005, NIST RMF), document assessment processes.",
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169853",
+          "name_fr": "Cadre de Gestion des Risques",
+          "description_fr": "Mettre en place un cadre de gestion des risques incluant l'identification, l'analyse et la réponse aux risques.",
+          "implementation_examples_fr": "Utiliser une méthodologie structurée d'analyse des risques (ISO 27005, NIST RMF), documenter les processus d'évaluation."
+        }
+      ]
+    },
+    {
+      "file": "functions.parquet",
+      "rows": 6,
+      "columns": [
+        {
+          "name": "id",
+          "dtype": "str"
+        },
+        {
+          "name": "name",
+          "dtype": "str"
+        },
+        {
+          "name": "description",
+          "dtype": "str"
+        },
+        {
+          "name": "categories",
+          "dtype": "object"
+        },
+        {
+          "name": "source_url",
+          "dtype": "str"
+        },
+        {
+          "name": "language",
+          "dtype": "str"
+        },
+        {
+          "name": "generated_at",
+          "dtype": "str"
+        },
+        {
+          "name": "name_fr",
+          "dtype": "str"
+        },
+        {
+          "name": "description_fr",
+          "dtype": "str"
+        }
+      ],
+      "selected_columns": [
+        "id",
+        "name",
+        "description",
+        "categories",
+        "source_url",
+        "language",
+        "generated_at",
+        "name_fr",
+        "description_fr"
+      ],
+      "sample_rows": [
+        {
+          "id": "GV",
+          "name": "Govern",
+          "description": "The Govern function establishes organizational policies, procedures, and processes to manage cybersecurity risk in accordance with organizational strategy, risk management process, and organizational objectives.",
+          "categories": [
+            "GV.OC",
+            "GV.RM",
+            "GV.RR",
+            "GV.PO",
+            "GV.OV",
+            "GV.SC"
+          ],
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169823",
+          "name_fr": "Gouverner",
+          "description_fr": "La fonction Gouverner établit les politiques, procédures et processus d'organisation pour gérer les risques de cybersécurité de manière intégrée à la stratégie d'entreprise, la gestion des risques et les objectifs commerciaux."
+        },
+        {
+          "id": "ID",
+          "name": "Identify",
+          "description": "The Identify function develops organizational understanding to manage cybersecurity risk to systems, assets, data, and capabilities in relation to critical business objectives and mission.",
+          "categories": [
+            "ID.AM",
+            "ID.BE",
+            "ID.GV",
+            "ID.RA",
+            "ID.SC",
+            "ID.RM"
+          ],
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169834",
+          "name_fr": "Identifier",
+          "description_fr": "La fonction Identifier développe une compréhension organisationnelle pour gérer les risques de cybersécurité en relation avec ses actifs critiques, ses systèmes et services, ses personnes, ses processus et ses matériaux de gouvernance."
+        },
+        {
+          "id": "PR",
+          "name": "Protect",
+          "description": "The Protect function develops and implements appropriate safeguards to ensure delivery of critical infrastructure services during adverse events.",
+          "categories": [
+            "PR.AA",
+            "PR.AT",
+            "PR.DS",
+            "PR.IP",
+            "PR.MA",
+            "PR.MO",
+            "PR.PO",
+            "PR.PS",
+            "PR.SL"
+          ],
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169837",
+          "name_fr": "Protéger",
+          "description_fr": "La fonction Protéger développe et met en œuvre les défenses appropriées pour maintenir la confidentialité, l'intégrité et la disponibilité des systèmes et des actifs."
+        }
+      ]
+    },
+    {
+      "file": "nist_csf_2_0_complete.parquet",
+      "rows": 99,
+      "columns": [
+        {
+          "name": "type",
+          "dtype": "str"
+        },
+        {
+          "name": "id",
+          "dtype": "str"
+        },
+        {
+          "name": "name",
+          "dtype": "str"
+        },
+        {
+          "name": "description",
+          "dtype": "str"
+        },
+        {
+          "name": "category",
+          "dtype": "str"
+        },
+        {
+          "name": "function_id",
+          "dtype": "str"
+        },
+        {
+          "name": "keywords",
+          "dtype": "str"
+        },
+        {
+          "name": "difficulty",
+          "dtype": "str"
+        },
+        {
+          "name": "language",
+          "dtype": "str"
+        }
+      ],
+      "selected_columns": [
+        "type",
+        "id",
+        "name",
+        "description",
+        "category",
+        "function_id",
+        "keywords",
+        "difficulty",
+        "language"
+      ],
+      "sample_rows": [
+        {
+          "type": "function",
+          "id": "GV",
+          "name": "Govern",
+          "description": "The Govern function establishes organizational policies, procedures, and processes to manage cybersecurity risk in accordance with organizational strategy, risk management process, and organizational objectives.",
+          "category": "",
+          "function_id": "GV",
+          "keywords": "",
+          "difficulty": "",
+          "language": "en"
+        },
+        {
+          "type": "function",
+          "id": "ID",
+          "name": "Identify",
+          "description": "The Identify function develops organizational understanding to manage cybersecurity risk to systems, assets, data, and capabilities in relation to critical business objectives and mission.",
+          "category": "",
+          "function_id": "ID",
+          "keywords": "",
+          "difficulty": "",
+          "language": "en"
+        },
+        {
+          "type": "function",
+          "id": "PR",
+          "name": "Protect",
+          "description": "The Protect function develops and implements appropriate safeguards to ensure delivery of critical infrastructure services during adverse events.",
+          "category": "",
+          "function_id": "PR",
+          "keywords": "",
+          "difficulty": "",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "file": "qa.parquet",
+      "rows": 50,
+      "columns": [
+        {
+          "name": "id",
+          "dtype": "str"
+        },
+        {
+          "name": "question",
+          "dtype": "str"
+        },
+        {
+          "name": "answer",
+          "dtype": "str"
+        },
+        {
+          "name": "category",
+          "dtype": "str"
+        },
+        {
+          "name": "reference",
+          "dtype": "str"
+        },
+        {
+          "name": "difficulty",
+          "dtype": "str"
+        },
+        {
+          "name": "keywords",
+          "dtype": "object"
+        },
+        {
+          "name": "source_url",
+          "dtype": "str"
+        },
+        {
+          "name": "language",
+          "dtype": "str"
+        },
+        {
+          "name": "generated_at",
+          "dtype": "str"
+        }
+      ],
+      "selected_columns": [
+        "id",
+        "question",
+        "answer",
+        "category",
+        "reference",
+        "difficulty",
+        "keywords",
+        "source_url",
+        "language",
+        "generated_at"
+      ],
+      "sample_rows": [
+        {
+          "id": "qa-en-001",
+          "question": "What is the NIST Cybersecurity Framework 2.0?",
+          "answer": "The NIST Cybersecurity Framework 2.0 is a comprehensive set of standards and best practices developed by the National Institute of Standards and Technology (NIST) to help organizations manage and reduce cybersecurity risks. It includes 6 core functions: Govern, Identify, Protect, Detect, Respond, and Recover.",
+          "category": "general",
+          "reference": "NIST CSF 2.0",
+          "difficulty": "debutant",
+          "keywords": [
+            "NIST",
+            "framework",
+            "cybersecurity",
+            "risk",
+            "function"
+          ],
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169940"
+        },
+        {
+          "id": "qa-en-002",
+          "question": "What are the 6 core functions of NIST CSF 2.0?",
+          "answer": "The 6 core functions of NIST CSF 2.0 are: 1) Govern (GV) - establish policies and governance, 2) Identify (ID) - understand assets and risks, 3) Protect (PR) - implement defenses, 4) Detect (DE) - identify security events, 5) Respond (RS) - manage incidents, 6) Recover (RC) - restore services.",
+          "category": "general",
+          "reference": "NIST CSF 2.0",
+          "difficulty": "debutant",
+          "keywords": [
+            "functions",
+            "govern",
+            "identify",
+            "protect",
+            "detect",
+            "respond",
+            "recover"
+          ],
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169942"
+        },
+        {
+          "id": "qa-en-003",
+          "question": "What does the Govern (GV) function of NIST CSF 2.0 mean?",
+          "answer": "The Govern function establishes organizational policies, procedures, and processes to manage cybersecurity risk in accordance with organizational strategy, risk management process, and organizational objectives. It comprises 6 categories: Organizational Context, Risk Management Strategy, Roles and Responsibilities, Policies and Oversight, Organizational Oversight, and Supply Chain Risk Management.",
+          "category": "govern",
+          "reference": "NIST CSF 2.0 - Function GV",
+          "difficulty": "intermediaire",
+          "keywords": [
+            "govern",
+            "policies",
+            "risk management",
+            "strategy"
+          ],
+          "source_url": "https://www.ayinedjimi-consultants.fr",
+          "language": "en",
+          "generated_at": "2026-02-13T10:59:23.169945"
+        }
+      ]
+    }
+  ]
+}

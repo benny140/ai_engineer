@@ -1,0 +1,12 @@
+{
+  "input_dir": "raw",
+  "output_jsonl": "processed\\chunks.jsonl",
+  "profile_report": "processed\\source_profile.json",
+  "persist_dir": "chroma_db",
+  "collection_name": "rag_docs",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "profiled_files": 4,
+  "processed_records": 198,
+  "chunks_written": 198,
+  "chunks_ingested": 198
+}
