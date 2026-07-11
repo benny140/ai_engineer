@@ -17,10 +17,10 @@ with a React (Vite + MUI) frontend. No data leaves the host machine.
 | API | FastAPI | `/query`, `/query/stream` (SSE), `/health`; request validation, session orchestration |
 | Orchestration | `MultiAgentRAG` | Coordinates Planner → Retriever → Responder pipeline |
 | Inference | Ollama (`granite4.1:3b`) | Local chat completions for planning, answering, summarizing |
-| Retrieval | Chroma (`PersistentClient`) | Vector similarity search over embedded chunks |
+| Retrieval | Chroma or Azure AI Search | Vector similarity search over embedded chunks |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | Query + document embeddings |
 | Session state | SQLite (`session_store`) | Messages, rolling summaries per session |
-| Ingestion | `ingest_chroma.py` | Parquet → chunk → embed → persist pipeline |
+| Ingestion | `backend/ingestion/chroma/ingest_chroma.py` and `backend/ingestion/azure_search/ingest_azure_search.py` | Parquet → chunk → embed → index pipeline |
 
 ### Data Flow
 
@@ -43,8 +43,9 @@ flowchart LR
 ### Configuration
 
 Runtime behavior is driven by `backend/config/rag_runtime_config.json` (vector store
-provider, `top_k`, distance thresholds, Ollama model/timeout/retries). Ingestion is driven
-by `backend/ingestion/ingest_config.json` (chunk size/overlap, embedding model, collection).
+provider, `top_k`, retrieval thresholds, Ollama model/timeout/retries). Ingestion is driven
+by provider-specific config files under `backend/ingestion/chroma/` and
+`backend/ingestion/azure_search/`.
 Paths are resolved relative to the repo root via `backend/paths.py`, keeping configuration
 environment-agnostic.
 

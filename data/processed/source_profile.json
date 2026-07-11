@@ -1,5 +1,5 @@
 {
-  "input_dir": "raw",
+  "input_dir": "C:\\Users\\benja\\Projects\\ai_engineer\\data\\raw",
   "files": [
     {
       "file": "categories.parquet",

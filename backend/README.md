@@ -23,7 +23,13 @@ API URL: http://127.0.0.1:8000
 ## Optional: Rebuild Vector DB
 
 ```powershell
-python -m backend.ingestion.ingest_chroma --mode ingest
+python -m backend.ingestion.chroma.ingest_chroma --mode ingest
+```
+
+## Optional: Rebuild Azure AI Search Index
+
+```powershell
+python -m backend.ingestion.azure_search.ingest_azure_search --mode ingest
 ```
 
 ## Ollama Required

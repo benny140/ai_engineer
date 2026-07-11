@@ -1,13 +1,22 @@
 {
-  "vector_store_provider": "chroma",
+  "llm_provider": "azure_openai",
+  "vector_store_provider": "azure_search",
   "persist_dir": "data/chroma_db",
   "collection_name": "rag_docs",
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "azure_search_endpoint": "https://benjamin-007-ais.search.windows.net",
+  "azure_search_index_name": "rag-docs",
+  "azure_search_api_key_env": "AZURE_SEARCH_API_KEY",
+  "azure_search_mode": "hybrid",
+  "azure_search_min_score": 0.03,
+  "azure_search_fallback_min_score": 0.02,
   "top_k": 5,
   "max_distance": 0.5,
   "fallback_max_distance": 0.7,
   "ollama_max_retries": 1,
   "ollama_base_url": "http://localhost:11434",
   "ollama_model": "granite4.1:3b",
-  "ollama_timeout_sec": 45
+  "ollama_timeout_sec": 45,
+  "azure_openai_api_version": "2024-10-21",
+  "azure_openai_timeout_sec": 60
 }

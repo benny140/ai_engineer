@@ -1,1 +1,1 @@
-"""Ingestion pipeline package for rebuilding ChromaDB."""
+"""Ingestion pipelines for rebuilding vector indexes."""

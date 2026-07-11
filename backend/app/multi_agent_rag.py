@@ -1,19 +1,28 @@
 import json
+import os
 import time
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
 
-from backend.app.ollama_client import OllamaClient, OllamaConfig
+from dotenv import load_dotenv
+from backend.app.azure_openai_client import AzureOpenAIClient, AzureOpenAIConfig
 from backend.app.vectorstores import RetrievedChunk, VectorStore, create_vector_store
 from backend.paths import resolve_repo_path
 
 
 @dataclass
 class RuntimeConfig:
+    llm_provider: str = "ollama"
     vector_store_provider: str = "chroma"
     persist_dir: str = "data/chroma_db"
     collection_name: str = "rag_docs"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    azure_search_endpoint: str = ""
+    azure_search_index_name: str = "rag-docs"
+    azure_search_api_key_env: str = "AZURE_SEARCH_API_KEY"
+    azure_search_mode: str = "hybrid"
+    azure_search_min_score: float = 0.0
+    azure_search_fallback_min_score: float = 0.0
     top_k: int = 5
     max_distance: float = 0.5
     fallback_max_distance: float = 0.7
@@ -21,6 +30,8 @@ class RuntimeConfig:
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "granite4.1:3b"
     ollama_timeout_sec: int = 45
+    azure_openai_api_version: str = "2024-10-21"
+    azure_openai_timeout_sec: int = 60
 
 
 @dataclass
@@ -28,16 +39,18 @@ class RetrievalPlan:
     retrieval_query: str
     top_k: int
     response_style: str
+    is_in_scope: bool = True
+    scope_reason: str = ""
 
 
 class PlannerAgent:
     def __init__(
         self,
-        ollama_client: OllamaClient,
+        llm_client: Any,
         default_top_k: int,
         max_retries: int,
     ):
-        self.ollama_client = ollama_client
+        self.llm_client = llm_client
         self.default_top_k = default_top_k
         self.max_retries = max(0, max_retries)
 
@@ -47,20 +60,25 @@ class PlannerAgent:
         trace_callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> RetrievalPlan:
         system_prompt = (
-            "You are a planning assistant for RAG. "
-            "Return strict JSON with keys: retrieval_query, top_k, response_style."
+            "You are a planning assistant for a NIST Cybersecurity Framework 2.0 RAG service. "
+            "Return strict JSON with keys: retrieval_query, top_k, response_style, is_in_scope, scope_reason. "
+            "Set is_in_scope=true for questions about cybersecurity controls, risk, governance, detection, response, recovery, or implementation practices that can be grounded in NIST CSF 2.0. "
+            "Treat domain-specific cybersecurity questions (for example API security controls) as in scope. "
+            "Set is_in_scope=false only for clearly unrelated topics."
         )
         user_prompt = (
             "Create a retrieval plan for this question. "
-            "Keep top_k small and between 1 and 8.\n"
+            "Keep top_k small and between 1 and 3.\n"
             f"Question: {question}\n"
             f"Default top_k: {self.default_top_k}"
         )
 
         fallback = RetrievalPlan(
             retrieval_query=question,
-            top_k=self.default_top_k,
-            response_style="concise and grounded",
+            top_k=max(1, min(self.default_top_k, 3)),
+            response_style="brief bullets",
+            is_in_scope=True,
+            scope_reason="fallback_default_in_scope",
         )
         started = time.perf_counter()
 
@@ -80,7 +98,7 @@ class PlannerAgent:
         raw: Any = None
         for attempt in range(1, attempts + 1):
             try:
-                raw = self.ollama_client.chat(
+                raw = self.llm_client.chat(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     temperature=0.1,
@@ -126,17 +144,28 @@ class PlannerAgent:
             return fallback
 
         retrieval_query = str(raw.get("retrieval_query", question)).strip() or question
-        top_k = int(raw.get("top_k", self.default_top_k))
-        top_k = max(1, min(top_k, 8))
-        response_style = (
-            str(raw.get("response_style", "concise and grounded")).strip()
-            or "concise and grounded"
-        )
+        top_k_raw = raw.get("top_k", self.default_top_k)
+        try:
+            top_k = int(top_k_raw)
+        except (TypeError, ValueError):
+            top_k = self.default_top_k
+        top_k = max(1, min(top_k, 3))
+        response_style = "brief bullets"
+        is_in_scope_raw = raw.get("is_in_scope", True)
+        if isinstance(is_in_scope_raw, bool):
+            is_in_scope = is_in_scope_raw
+        elif isinstance(is_in_scope_raw, str):
+            is_in_scope = is_in_scope_raw.strip().lower() in {"true", "1", "yes"}
+        else:
+            is_in_scope = bool(is_in_scope_raw)
+        scope_reason = str(raw.get("scope_reason", "")).strip()
 
         plan = RetrievalPlan(
             retrieval_query=retrieval_query,
             top_k=top_k,
             response_style=response_style,
+            is_in_scope=is_in_scope,
+            scope_reason=scope_reason,
         )
         if trace_callback:
             trace_callback(
@@ -160,6 +189,12 @@ class RetrievalAgent:
             embedding_model=config.embedding_model,
             max_distance=config.max_distance,
             fallback_max_distance=config.fallback_max_distance,
+            azure_search_endpoint=config.azure_search_endpoint,
+            azure_search_index_name=config.azure_search_index_name,
+            azure_search_api_key_env=config.azure_search_api_key_env,
+            azure_search_mode=config.azure_search_mode,
+            azure_search_min_score=config.azure_search_min_score,
+            azure_search_fallback_min_score=config.azure_search_fallback_min_score,
         )
 
     def retrieve(
@@ -175,8 +210,8 @@ class RetrievalAgent:
 
 
 class ResponseAgent:
-    def __init__(self, ollama_client: OllamaClient, max_retries: int):
-        self.ollama_client = ollama_client
+    def __init__(self, llm_client: Any, max_retries: int):
+        self.llm_client = llm_client
         self.max_retries = max(0, max_retries)
 
     def build_answer(
@@ -204,11 +239,14 @@ class ResponseAgent:
         system_prompt = (
             "You are a grounded response agent. "
             "Only use the provided context. If context is weak, say so. "
+            "Give a short answer in at most 5 bullets and at most 120 words total. "
+            "List applicable controls first, then one short line on why each applies. "
+            "Do not include long explanations unless the user asks for details. "
             "Use concise citations like [source_file#row_index]."
         )
 
         prompt_sections: list[str] = [
-            f"Preferred style: {plan.response_style}",
+            "Preferred style: brief bullets",
         ]
         if conversation_summary:
             prompt_sections.append(
@@ -247,10 +285,10 @@ class ResponseAgent:
         last_error = "unknown error"
         for attempt in range(1, attempts + 1):
             try:
-                text = self.ollama_client.chat(
+                text = self.llm_client.chat(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
-                    temperature=0.2,
+                    temperature=0.1,
                     json_output=False,
                 )
                 answer = str(text)
@@ -301,26 +339,43 @@ class ResponseAgent:
                 }
             )
         return (
-            "Retrieved context successfully, but the local Ollama response step "
+            "Retrieved context successfully, but the LLM response step "
             f"timed out or failed: {last_error}. "
-            f"Try increasing ollama_timeout_sec. Sources: {source_tags}"
+            "Try increasing the configured timeout. "
+            f"Sources: {source_tags}"
         )
+
+
+def build_llm_client(config: RuntimeConfig) -> Any:
+    provider = config.llm_provider.strip().lower()
+    if provider == "azure_openai":
+        load_dotenv(resolve_repo_path(".env"))
+        return AzureOpenAIClient(
+            AzureOpenAIConfig(
+                endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", "").strip(),
+                api_key=os.getenv("AZURE_OPENAI_API_KEY", "").strip(),
+                deployment=os.getenv("DEPLOYMENT_NAME", "").strip(),
+                api_version=config.azure_openai_api_version,
+                timeout_sec=config.azure_openai_timeout_sec,
+            )
+        )
+    raise ValueError(
+        "Unsupported llm_provider for this deployment: "
+        f"{config.llm_provider}. Expected: azure_openai"
+    )
 
 
 class MultiAgentRAG:
     def __init__(self, config: RuntimeConfig):
-        ollama_client = OllamaClient(
-            OllamaConfig(
-                base_url=config.ollama_base_url,
-                model=config.ollama_model,
-                timeout_sec=config.ollama_timeout_sec,
+        if config.vector_store_provider.strip().lower() != "azure_search":
+            raise ValueError(
+                "Unsupported vector_store_provider for this deployment: "
+                f"{config.vector_store_provider}. Expected: azure_search"
             )
-        )
-        self.planner = PlannerAgent(
-            ollama_client, config.top_k, config.ollama_max_retries
-        )
+        llm_client = build_llm_client(config)
+        self.planner = PlannerAgent(llm_client, config.top_k, config.ollama_max_retries)
         self.retriever = RetrievalAgent(config)
-        self.responder = ResponseAgent(ollama_client, config.ollama_max_retries)
+        self.responder = ResponseAgent(llm_client, config.ollama_max_retries)
 
     def summarize_history(
         self,
@@ -355,7 +410,7 @@ class MultiAgentRAG:
         )
 
         try:
-            text = self.responder.ollama_client.chat(
+            text = self.responder.llm_client.chat(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 temperature=0.1,
@@ -375,6 +430,31 @@ class MultiAgentRAG:
         started = time.perf_counter()
 
         plan = self.planner.create_plan(question, trace_callback=trace_callback)
+        if not plan.is_in_scope:
+            if trace_callback:
+                trace_callback(
+                    {
+                        "stage": "pipeline",
+                        "event": "scope_rejected",
+                        "scope_reason": plan.scope_reason,
+                    }
+                )
+            result = {
+                "answer": "This question is not appropriate for this service.",
+                "plan": asdict(plan),
+                "sources": [],
+            }
+            if trace_callback:
+                trace_callback(
+                    {
+                        "stage": "pipeline",
+                        "event": "pipeline_completed",
+                        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                        "source_count": 0,
+                    }
+                )
+            return result
+
         if trace_callback:
             trace_callback(
                 {
@@ -445,11 +525,14 @@ class MultiAgentRAG:
 
 def load_runtime_config(
     runtime_config_path: str = "backend/config/rag_runtime_config.json",
-    ingest_config_path: str = "backend/ingestion/ingest_config.json",
+    ingest_config_path: str = "backend/ingestion/chroma/ingest_config.json",
 ) -> RuntimeConfig:
     data: dict[str, Any] = {}
 
     ingest_path = resolve_repo_path(ingest_config_path)
+    if not ingest_path.exists():
+        ingest_path = resolve_repo_path("backend/ingestion/ingest_config.json")
+
     if ingest_path.exists():
         with ingest_path.open("r", encoding="utf-8") as f:
             ingest = json.load(f)
@@ -466,11 +549,22 @@ def load_runtime_config(
             data.update(runtime)
 
     return RuntimeConfig(
+        llm_provider=str(data.get("llm_provider", "ollama")),
         vector_store_provider=str(data.get("vector_store_provider", "chroma")),
         persist_dir=str(data.get("persist_dir", "data/chroma_db")),
         collection_name=str(data.get("collection_name", "rag_docs")),
         embedding_model=str(
             data.get("embedding_model", "sentence-transformers/all-MiniLM-L6-v2")
+        ),
+        azure_search_endpoint=str(data.get("azure_search_endpoint", "")),
+        azure_search_index_name=str(data.get("azure_search_index_name", "rag-docs")),
+        azure_search_api_key_env=str(
+            data.get("azure_search_api_key_env", "AZURE_SEARCH_API_KEY")
+        ),
+        azure_search_mode=str(data.get("azure_search_mode", "hybrid")),
+        azure_search_min_score=float(data.get("azure_search_min_score", 0.0)),
+        azure_search_fallback_min_score=float(
+            data.get("azure_search_fallback_min_score", 0.0)
         ),
         top_k=int(data.get("top_k", 5)),
         max_distance=float(data.get("max_distance", 0.5)),
@@ -479,4 +573,8 @@ def load_runtime_config(
         ollama_base_url=str(data.get("ollama_base_url", "http://localhost:11434")),
         ollama_model=str(data.get("ollama_model", "granite4.1:3b")),
         ollama_timeout_sec=int(data.get("ollama_timeout_sec", 45)),
+        azure_openai_api_version=str(
+            data.get("azure_openai_api_version", "2024-10-21")
+        ),
+        azure_openai_timeout_sec=int(data.get("azure_openai_timeout_sec", 60)),
     )

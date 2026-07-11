@@ -1,0 +1,18 @@
+{
+  "input_dir": "data/raw",
+  "output_jsonl": "data/processed/chunks.jsonl",
+  "profile_report": "data/processed/source_profile.json",
+  "persist_dir": "data/chroma_db",
+  "collection_name": "rag_docs",
+  "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "chunk_size": 400,
+  "chunk_overlap": 60,
+  "batch_size": 256,
+  "preview_rows": 3,
+  "column_overrides": {
+    "qa.parquet": [],
+    "functions.parquet": [],
+    "categories.parquet": [],
+    "nist_csf_2_0_complete.parquet": []
+  }
+}
