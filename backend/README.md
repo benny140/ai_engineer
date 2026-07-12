@@ -10,6 +10,21 @@ python -m venv .venv
 pip install -r backend/requirements.txt
 ```
 
+## Configure
+
+Create a `.env` in the repo root with your Azure credentials:
+
+```env
+AZURE_OPENAI_ENDPOINT=https://<your-openai-resource>.openai.azure.com
+AZURE_OPENAI_API_KEY=<your-openai-key>
+DEPLOYMENT_NAME=<your-chat-deployment-name>
+AZURE_SEARCH_ENDPOINT=https://<your-search-service>.search.windows.net
+AZURE_SEARCH_API_KEY=<your-search-admin-key>
+```
+
+Set `azure_search_endpoint` in `backend/config/rag_runtime_config.json` to the same
+`AZURE_SEARCH_ENDPOINT` value.
+
 ## Run API
 
 From repo root:
@@ -20,21 +35,12 @@ fastapi dev backend/app/api.py
 
 API URL: http://127.0.0.1:8000
 
-## Optional: Rebuild Vector DB
+## Build the Azure AI Search Index
 
-```powershell
-python -m backend.ingestion.chroma.ingest_chroma --mode ingest
-```
-
-## Optional: Rebuild Azure AI Search Index
+Place `.parquet` sources in `data/raw/`, then from the repo root:
 
 ```powershell
 python -m backend.ingestion.azure_search.ingest_azure_search --mode ingest
 ```
 
-## Ollama Required
-
-```powershell
-ollama pull granite4.1:3b
-ollama serve
-```
+Use `--mode inspect` to profile the sources without uploading.
