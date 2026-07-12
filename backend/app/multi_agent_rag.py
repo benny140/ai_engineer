@@ -51,8 +51,17 @@ class PlannerAgent:
         max_retries: int,
     ):
         self.llm_client = llm_client
-        self.default_top_k = default_top_k
+        self.default_top_k = max(1, int(default_top_k))
         self.max_retries = max(0, max_retries)
+
+    def _reject_plan(self, question: str, reason: str) -> RetrievalPlan:
+        return RetrievalPlan(
+            retrieval_query=question,
+            top_k=self.default_top_k,
+            response_style="brief bullets",
+            is_in_scope=False,
+            scope_reason=reason,
+        )
 
     def create_plan(
         self,
@@ -62,23 +71,16 @@ class PlannerAgent:
         system_prompt = (
             "You are a planning assistant for a NIST Cybersecurity Framework 2.0 RAG service. "
             "Return strict JSON with keys: retrieval_query, top_k, response_style, is_in_scope, scope_reason. "
+            f"Set top_k to exactly {self.default_top_k}. "
             "Set is_in_scope=true for questions about cybersecurity controls, risk, governance, detection, response, recovery, or implementation practices that can be grounded in NIST CSF 2.0. "
             "Treat domain-specific cybersecurity questions (for example API security controls) as in scope. "
             "Set is_in_scope=false only for clearly unrelated topics."
         )
         user_prompt = (
             "Create a retrieval plan for this question. "
-            "Keep top_k small and between 1 and 3.\n"
+            f"Set top_k to {self.default_top_k}.\n"
             f"Question: {question}\n"
             f"Default top_k: {self.default_top_k}"
-        )
-
-        fallback = RetrievalPlan(
-            retrieval_query=question,
-            top_k=max(1, min(self.default_top_k, 3)),
-            response_style="brief bullets",
-            is_in_scope=True,
-            scope_reason="fallback_default_in_scope",
         )
         started = time.perf_counter()
 
@@ -117,40 +119,75 @@ class PlannerAgent:
                         }
                     )
                 if attempt == attempts:
+                    rejected = self._reject_plan(question, "planner_error")
                     if trace_callback:
                         trace_callback(
                             {
                                 "stage": "planner",
-                                "event": "planner_fallback",
+                                "event": "planner_rejected",
                                 "reason": "planner_error",
+                                "plan": asdict(rejected),
                                 "duration_ms": round(
                                     (time.perf_counter() - started) * 1000, 2
                                 ),
                             }
                         )
-                    return fallback
+                    return rejected
 
         if not isinstance(raw, dict):
+            rejected = self._reject_plan(question, "invalid_planner_json")
             if trace_callback:
                 trace_callback(
                     {
                         "stage": "planner",
-                        "event": "planner_fallback",
+                        "event": "planner_rejected",
                         "reason": "invalid_planner_json",
+                        "plan": asdict(rejected),
                         "raw_response": raw,
                         "duration_ms": round((time.perf_counter() - started) * 1000, 2),
                     }
                 )
-            return fallback
+            return rejected
+
+        required_fields = {
+            "retrieval_query",
+            "top_k",
+            "response_style",
+            "is_in_scope",
+            "scope_reason",
+        }
+        missing_fields = sorted([k for k in required_fields if k not in raw])
+        if missing_fields:
+            reason = "missing_required_fields:" + ",".join(missing_fields)
+            rejected = self._reject_plan(question, reason)
+            if trace_callback:
+                trace_callback(
+                    {
+                        "stage": "planner",
+                        "event": "planner_rejected",
+                        "reason": reason,
+                        "plan": asdict(rejected),
+                        "raw_response": raw,
+                        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    }
+                )
+            return rejected
 
         retrieval_query = str(raw.get("retrieval_query", question)).strip() or question
-        top_k_raw = raw.get("top_k", self.default_top_k)
-        try:
-            top_k = int(top_k_raw)
-        except (TypeError, ValueError):
-            top_k = self.default_top_k
-        top_k = max(1, min(top_k, 3))
-        response_style = "brief bullets"
+        top_k = self.default_top_k
+        response_style_raw = str(raw.get("response_style", "")).strip().lower()
+        allowed_response_styles = {
+            "brief bullets",
+            "concise paragraph",
+            "step-by-step",
+            "control-first bullets",
+        }
+        if not response_style_raw:
+            response_style = "brief bullets"
+        elif response_style_raw in allowed_response_styles:
+            response_style = response_style_raw
+        else:
+            response_style = "brief bullets"
         is_in_scope_raw = raw.get("is_in_scope", True)
         if isinstance(is_in_scope_raw, bool):
             is_in_scope = is_in_scope_raw
@@ -159,6 +196,8 @@ class PlannerAgent:
         else:
             is_in_scope = bool(is_in_scope_raw)
         scope_reason = str(raw.get("scope_reason", "")).strip()
+        if not scope_reason:
+            scope_reason = "in_scope" if is_in_scope else "no_related_topic_found"
 
         plan = RetrievalPlan(
             retrieval_query=retrieval_query,
@@ -225,8 +264,8 @@ class ResponseAgent:
     ) -> str:
         if not chunks:
             return (
-                "I could not find enough relevant context in the local knowledge base "
-                "to answer confidently."
+                "Unable to answer: no_related_topic_found. "
+                "No sufficiently relevant context was retrieved for this question."
             )
 
         context_lines: list[str] = []
@@ -239,14 +278,15 @@ class ResponseAgent:
         system_prompt = (
             "You are a grounded response agent. "
             "Only use the provided context. If context is weak, say so. "
-            "Give a short answer in at most 5 bullets and at most 120 words total. "
-            "List applicable controls first, then one short line on why each applies. "
-            "Do not include long explanations unless the user asks for details. "
+            "Produce a technical, well-structured answer with clear section headings. "
+            "Target 220 to 400 words unless the user explicitly asks for a shorter reply. "
+            "List applicable controls first, then explain why each applies with specific rationale. "
+            "Include implementation-oriented details when they are supported by the provided context. "
             "Use concise citations like [source_file#row_index]."
         )
 
         prompt_sections: list[str] = [
-            "Preferred style: brief bullets",
+            "Preferred style: " + plan.response_style,
         ]
         if conversation_summary:
             prompt_sections.append(
@@ -339,10 +379,8 @@ class ResponseAgent:
                 }
             )
         return (
-            "Retrieved context successfully, but the LLM response step "
-            f"timed out or failed: {last_error}. "
-            "Try increasing the configured timeout. "
-            f"Sources: {source_tags}"
+            "Unable to answer: context_not_specific_enough_or_response_generation_failed. "
+            f"Reason: {last_error}. Sources considered: {source_tags}"
         )
 
 
@@ -440,7 +478,11 @@ class MultiAgentRAG:
                     }
                 )
             result = {
-                "answer": "This question is not appropriate for this service.",
+                "answer": (
+                    "Unable to answer: "
+                    f"{plan.scope_reason or 'out_of_scope_for_service'}. "
+                    "This service only handles NIST CSF 2.0 cybersecurity topics."
+                ),
                 "plan": asdict(plan),
                 "sources": [],
             }
