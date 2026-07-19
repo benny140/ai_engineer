@@ -1,3 +1,4 @@
+import asyncio
 import json
 import queue
 import threading
@@ -9,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.app.multi_agent_rag import MultiAgentRAG, load_runtime_config
+from backend.app.agent_framework_rag import AgentFrameworkRAG, load_runtime_config
 from backend.app.session_store import SessionStore
 from backend.paths import resolve_repo_path
 
@@ -74,19 +75,19 @@ def _trace_emitter(
     return emit
 
 
-def _run_query(
+async def _run_query_async(
     request: QueryRequest,
     trace_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[dict[str, Any], str | None]:
     cfg = load_runtime_config()
-    rag = MultiAgentRAG(cfg)
+    rag = AgentFrameworkRAG(cfg)
 
     if not request.session_id:
-        result = rag.run(request.question, trace_callback=trace_callback)
+        result = await rag.run_async(request.question, trace_callback=trace_callback)
         return result, None
 
     if session_store is None:
-        result = rag.run(request.question, trace_callback=trace_callback)
+        result = await rag.run_async(request.question, trace_callback=trace_callback)
         return result, request.session_id
 
     sid = session_store.ensure_session(request.session_id)
@@ -101,7 +102,7 @@ def _run_query(
             last_summarized_message_id=last_summarized_message_id,
         )
         if len(unsummarized_older) >= SUMMARY_BATCH_SIZE:
-            updated_summary = rag.summarize_history(
+            updated_summary = await rag.summarize_history_async(
                 existing_summary=summary_text,
                 older_messages=unsummarized_older,
             )
@@ -126,7 +127,7 @@ def _run_query(
         ):
             recent_messages = recent_messages[:-1]
 
-    result = rag.run(
+    result = await rag.run_async(
         request.question,
         conversation_summary=summary_text or None,
         recent_messages=[
@@ -138,6 +139,13 @@ def _run_query(
 
     session_store.add_message(sid, "assistant", str(result.get("answer", "")))
     return result, sid
+
+
+def _run_query(
+    request: QueryRequest,
+    trace_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> tuple[dict[str, Any], str | None]:
+    return asyncio.run(_run_query_async(request, trace_callback=trace_callback))
 
 
 @app.on_event("startup")

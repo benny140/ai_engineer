@@ -1,7 +1,8 @@
 # AI Engineer
 
-A multi-agent RAG assistant powered by **Azure OpenAI** (inference) and **Azure AI Search**
-(retrieval), with a FastAPI backend and a React (Vite) frontend.
+A RAG assistant orchestrated with **Microsoft Agent Framework**, powered by **Azure
+OpenAI** for inference and **Azure AI Search** for retrieval, with a FastAPI backend and a
+React (Vite) frontend.
 
 ## 1. Prerequisites
 
@@ -13,7 +14,7 @@ A multi-agent RAG assistant powered by **Azure OpenAI** (inference) and **Azure 
 
 | Service | Purpose | What you create |
 |---------|---------|-----------------|
-| **Azure OpenAI** | Chat completions for the Planner, Response, and summary agents | A resource + a **chat model deployment** (e.g. `gpt-4o-mini`). Note the deployment name. |
+| **Azure OpenAI** | Chat completions for Agent Framework planner, responder, and summarizer agents | A resource + a **chat model deployment** (e.g. `gpt-4o-mini`). Note the deployment name. |
 | **Azure AI Search** | Hybrid (vector + keyword) retrieval over ingested chunks | A search service. The index (`rag-docs`) is created automatically by the ingestion script. |
 
 ## 2. Install
@@ -29,6 +30,10 @@ cd frontend
 npm install
 cd ..
 ```
+
+The frozen requirements include `agent-framework` and its OpenAI provider. Microsoft Agent
+Framework is currently distributed as a meta-package, so its optional provider dependencies
+are also present even though this application only configures the OpenAI provider.
 
 ## 3. Configure Azure credentials
 

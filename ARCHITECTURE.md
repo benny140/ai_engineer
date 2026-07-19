@@ -1,9 +1,9 @@
 # AI Engineer — Architecture Document
 
-A **multi-agent Retrieval-Augmented Generation (RAG)** assistant. It answers questions
-grounded in a curated knowledge base (e.g. NIST CSF 2.0 content) using **Azure OpenAI** for
-inference and **Azure AI Search** for retrieval, behind a FastAPI backend and a React
-(Vite + MUI) frontend.
+A Retrieval-Augmented Generation (RAG) assistant built with **Microsoft Agent Framework**.
+It answers questions grounded in a curated knowledge base (e.g. NIST CSF 2.0 content) using
+**Azure OpenAI** for inference and **Azure AI Search** for retrieval, behind a FastAPI
+backend and a React (Vite + MUI) frontend.
 
 ---
 
@@ -15,8 +15,9 @@ inference and **Azure AI Search** for retrieval, behind a FastAPI backend and a 
 |-------|-----------|----------------|
 | Frontend | React + Vite + MUI | Chat UI, starter prompts, live agent trace timeline |
 | API | FastAPI | `/query`, `/query/stream` (SSE), `/health`; request validation, session orchestration |
-| Orchestration | `MultiAgentRAG` | Coordinates Planner → Retriever → Responder pipeline |
-| Inference | Azure OpenAI | Chat completions for planning, answering, and summarizing |
+| Orchestration | Microsoft Agent Framework `WorkflowBuilder` | Runs the typed Planner → Retriever → Responder graph |
+| Agents | Agent Framework `OpenAIChatCompletionClient.as_agent` | Creates planner, responder, and summarizer agents |
+| Inference | Azure OpenAI | Chat completions invoked through Agent Framework |
 | Retrieval | Azure AI Search | Hybrid (vector + keyword) search over embedded chunks |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | Query + document embeddings |
 | Session state | SQLite (`session_store`) | Messages and rolling summaries per session |
@@ -27,12 +28,12 @@ inference and **Azure AI Search** for retrieval, behind a FastAPI backend and a 
 ```mermaid
 flowchart LR
     U[User / Browser] -->|POST /query/stream| API[FastAPI]
-    API --> ORCH[MultiAgentRAG]
+    API --> ORCH[Agent Framework Workflow]
     ORCH --> P[Planner Agent]
-    P -->|plan| R[Retrieval Agent]
+    P -->|typed plan| R[Retrieval Executor]
     R -->|query + vector| AIS[(Azure AI Search)]
     AIS -->|chunks| R
-    R --> RESP[Response Agent]
+    R --> RESP[Responder Agent]
     RESP -->|prompt| AOAI[Azure OpenAI]
     AOAI -->|completion| RESP
     RESP -->|grounded answer| API
@@ -42,11 +43,11 @@ flowchart LR
 
 ### Configuration
 
-Runtime behavior is driven by `backend/config/rag_runtime_config.json` (LLM provider,
-vector store provider, `top_k`, score thresholds, Azure OpenAI/Search settings). Secrets and
-endpoints are supplied via environment variables (`.env`): `AZURE_OPENAI_ENDPOINT`,
-`AZURE_OPENAI_API_KEY`, `DEPLOYMENT_NAME`, and `AZURE_SEARCH_API_KEY`. Paths are resolved
-relative to the repo root via `backend/paths.py`, keeping configuration environment-agnostic.
+Runtime behavior is driven by `backend/config/rag_runtime_config.json` (`top_k`, score
+thresholds, retries, and Azure OpenAI/Search settings). Secrets and endpoints are supplied
+via environment variables (`.env`): `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`,
+`DEPLOYMENT_NAME`, and `AZURE_SEARCH_API_KEY`. Paths are resolved relative to the repo root
+via `backend/paths.py`, keeping configuration environment-agnostic.
 
 ### Offline Ingestion Pipeline
 
@@ -59,44 +60,50 @@ Ingestion is decoupled from serving so the query path stays read-only.
 
 ## 2. Agent Interaction Flow
 
-The pipeline is a deterministic three-stage chain that emits trace events at every step.
+The pipeline is a deterministic Microsoft Agent Framework graph. `WorkflowBuilder` connects
+three typed executors and emits the existing application trace events at every step.
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant API as FastAPI
     participant PL as Planner Agent
-    participant RE as Retrieval Agent
+    participant WF as Agent Framework Workflow
+    participant RE as Retrieval Executor
     participant AIS as Azure AI Search
     participant RS as Response Agent
     participant AO as Azure OpenAI
 
     U->>API: question
-    API->>PL: create_plan(question)
-    PL->>AO: JSON-mode plan request
+    API->>WF: run(RAGRequest)
+    WF->>PL: typed request
+    PL->>AO: agent.run(response_format=RetrievalPlan)
     AO-->>PL: retrieval_query, top_k, style, in_scope
-    PL-->>API: RetrievalPlan
-    API->>RE: retrieve(plan)
+    PL-->>WF: RetrievalPlan
+    WF->>RE: PlannedRequest
     RE->>AIS: hybrid vector + keyword search
     AIS-->>RE: scored chunks
-    RE-->>API: filtered chunks (or fallback)
-    API->>RS: build_answer(question, chunks)
+    RE-->>WF: RetrievedRequest
+    WF->>RS: question + plan + chunks
     RS->>AO: grounded prompt (context only)
     AO-->>RS: cited answer
-    RS-->>API: grounded answer
+    RS-->>WF: RAGResult
+    WF-->>API: answer + plan + sources
     API-->>U: answer + sources + trace (SSE)
 ```
 
-1. **Planner Agent** — Converts the raw question into a structured `RetrievalPlan`
-   (`retrieval_query`, `top_k`, `response_style`, `is_in_scope`). Uses JSON-mode Azure
-   OpenAI output with a safe fallback plan if the model errors or returns invalid JSON.
-2. **Retrieval Agent** — Runs hybrid search against Azure AI Search. Keeps chunks scoring
+1. **Planner Agent** — A genuine Microsoft Agent Framework agent created with
+   `OpenAIChatCompletionClient.as_agent`. It converts the raw question into a Pydantic
+   `RetrievalPlan` through the framework's structured-output support.
+2. **Retrieval Executor** — A deterministic Agent Framework `Executor` that runs hybrid
+   search against Azure AI Search. It keeps chunks scoring
    at or above `azure_search_min_score`; if none pass, it applies a fallback
    (`azure_search_fallback_min_score`) to surface the single best chunk, else returns empty
    (triggering an honest "not enough context" answer).
-3. **Response Agent** — Builds a grounded prompt containing only retrieved context, the
-   conversation summary, and recent turns. It instructs the model to cite sources
-   (`[source_file#row_index]`) and to admit weak context. Retries on transient failures.
+3. **Responder Agent** — A second Agent Framework agent that receives a grounded prompt
+   containing only retrieved context, the conversation summary, and recent turns. It cites
+   sources (`[source_file#row_index]`) and admits weak context. A third framework agent
+   creates rolling conversation summaries.
 
 **Conversational memory:** For sessions, the API keeps the most recent messages verbatim
 (`RECENT_VERBATIM_MESSAGES=8`) and, once history exceeds a threshold, batches older messages
@@ -137,8 +144,8 @@ step-by-step transparency into each answer.
   session state externalized (SQLite → Postgres/Redis for concurrency).
 - **Managed retrieval tier:** Azure AI Search scales independently of the API and handles
   vector + keyword search for larger corpora and shared access.
-- **Pluggable vector store:** The `create_vector_store` factory + `VectorStore` Protocol
-  keep agent logic decoupled from the retrieval backend.
+- **Typed retrieval boundary:** The `VectorStore` protocol keeps the workflow executor
+  decoupled from retrieval details, while serving uses Azure AI Search directly.
 - **Decoupled ingestion:** Batch ingestion scales independently of serving and can be re-run
   to refresh the index; the serving path never mutates the store.
 - **Streaming responses:** SSE streaming keeps the UI responsive and lets long generations
@@ -188,8 +195,8 @@ service) eventually, but run identically on any local Docker host during develop
 
 ## Summary
 
-The system favors **transparency, grounding, and modularity**: a clear three-agent pipeline
-(plan → retrieve → respond) on Azure OpenAI and Azure AI Search, grounded and cited answers,
-full observability via streaming traces, and configuration-driven behavior. Its
-Protocol-based abstractions, decoupled ingestion, and containerized services make it
-straightforward to scale and deploy to Azure Container Apps as requirements grow.
+The system favors **transparency, grounding, and explicit orchestration**: Microsoft Agent
+Framework agents and a typed `WorkflowBuilder` graph coordinate planning and grounded
+response generation around deterministic Azure AI Search retrieval. Streaming traces,
+configuration-driven behavior, decoupled ingestion, and containerized services make the
+application straightforward to inspect, scale, and deploy.

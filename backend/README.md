@@ -10,6 +10,10 @@ python -m venv .venv
 pip install -r backend/requirements.txt
 ```
 
+The query pipeline uses Microsoft Agent Framework's `OpenAIChatCompletionClient`, typed
+structured output, workflow executors, and `WorkflowBuilder`. Azure AI Search is a
+deterministic retrieval executor between the framework planner and responder agents.
+
 ## Configure
 
 Create a `.env` in the repo root with your Azure credentials:
